@@ -1,5 +1,6 @@
 import themes from "./themes";
 import {generateTeam} from "./generators";
+import GamePlay from "./GamePlay";
 import PositionedCharacter from "./PositionedCharacter";
 import Bowman from "./Bowman";
 import Magician from "./Magician";
@@ -17,6 +18,7 @@ export default class GameController {
     this.randomGamer = [0, 1, 8, 9, 16, 17, 24, 25, 32, 33, 40, 41, 48, 49, 56, 57];
     this.randomComp = [6, 7, 14, 15, 22, 23, 30, 31, 38, 39, 46, 47, 54, 55, 62, 63];
     this.position = [];//персонажи с позицией
+    this.click = -1;
   }
 
   init() {
@@ -61,23 +63,26 @@ export default class GameController {
 
   onCellClick(index) {
     // TODO: react to click
-    //this.gamePlay.redrawPositions()
-    //проверяйте, есть ли в ячейке персонаж и, 
-    //что самое важное, это играбельный персонаж 
-    //(т.е. Bowman, Swordsman или Magician). 
-    //Если нет - выводите сообщение об ошибке с помощью метода showError
-    // из класса GamePlay. Если же персонаж играбельный, 
-    //то необходимо выделить ячейку с помощью метода selectCell из класса GamePlay:
-    console.log(index);
-    console.log(this.position.filter(pos => pos.position === index));
+    if(this.click != -1){
+      this.gamePlay.deselectCell(this.click);
+    }
+    
+    this.click = index;
+    let characterClick =  this.position.filter(pos => pos.position === index);
+    if (characterClick[0].character.type == "magician" || characterClick[0].character.type == "bowman" || characterClick[0].character.type == "swordsman"){
+      this.gamePlay.selectCell(index);
+    } else if (characterClick[0].character.type == "undead" || characterClick[0].character.type == "daemon" || characterClick[0].character.type == "vampire"){
+      GamePlay.showError("Error");
+    }
+
     
   }
 
   onCellEnter(index) {
     let enter = this.position.filter(pos => pos.position === index)
-    console.log(enter)
+  
     if( enter[0].character.type == "magician" || enter[0].character.type == "bowman" || enter[0].character.type == "swordsman"){
-      console.log(enter[0].character)
+    
       this.gamePlay.showCellTooltip(`${'\u{1F396}'}${enter[0].character.level}${'\u{2694}'}${enter[0].character.attack}${'\u{1F6E1}'}${enter[0].character.defence}${'\u{2764}'}${enter[0].character.health}`,index)
     }
   }
