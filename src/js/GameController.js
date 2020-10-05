@@ -3,12 +3,12 @@ import cursors from "./cursors";
 import {generateTeam} from "./generators";
 import GamePlay from "./GamePlay";
 import PositionedCharacter from "./PositionedCharacter";
-import Bowman from "./Bowman";
-import Magician from "./Magician";
-import Swordsman from "./Swordsman";
-import Undead from "./Undead";
-import Vampire from "./Vampire";
-import Daemon from "./Daemon";
+import Bowman from "./characters//Bowman";
+import Magician from "./characters//Magician";
+import Swordsman from "./characters//Swordsman";
+import Undead from "./characters/Undead";
+import Vampire from "./characters//Vampire";
+import Daemon from "./characters/Daemon";
 
 export default class GameController {
   constructor(gamePlay, stateService) {
@@ -101,7 +101,7 @@ export default class GameController {
     //UPD 14.03.19: урон рассчитывается по формуле: 
     //Math.max(attacker.attack - target.defence, attacker.attack * 0.1)
     //если персонаж в зоне атаки и если он противник
-    
+
     /*this.position.forEach(pos => { // в процессе
       if(this.characterAttack.indexOf(index) != -1){
         let damage = this.gamePlay.showDamage(index, Math.max(attacker.attack - target.defence, attacker.attack * 0.1));
