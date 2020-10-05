@@ -8,9 +8,7 @@
 export function* characterGenerator(allowedTypes, maxLevel) {
   //выбирает рандомно один класс и создает персонажа с каким то уровнем TODO: write logic here
   let randomTypes = Math.floor(Math.random()*allowedTypes.length);
-  console.log(randomTypes);
   let levelTypes = Math.floor(Math.random()*maxLevel)+1;
-  console.log(levelTypes);
   yield new allowedTypes[randomTypes](levelTypes);
 }
 
@@ -22,10 +20,8 @@ export function generateTeam(allowedTypes, maxLevel, characterCount) {
   }*/
   for(let i = 0; i < characterCount; i += 1){
     const character = characterGenerator(allowedTypes, maxLevel).next().value;
-    console.log(character);
     teamCharacters.push(character);
     
   }
-  console.log(teamCharacters);
   return teamCharacters;
 }
