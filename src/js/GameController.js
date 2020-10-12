@@ -9,6 +9,7 @@ import Swordsman from "./characters//Swordsman";
 import Undead from "./characters/Undead";
 import Vampire from "./characters//Vampire";
 import Daemon from "./characters/Daemon";
+import Character from "./characters/Character";
 
 export default class GameController {
   constructor(gamePlay, stateService) {
@@ -19,6 +20,8 @@ export default class GameController {
     this.randomGamer = [0, 1, 8, 9, 16, 17, 24, 25, 32, 33, 40, 41, 48, 49, 56, 57];
     this.randomComp = [6, 7, 14, 15, 22, 23, 30, 31, 38, 39, 46, 47, 54, 55, 62, 63];
     this.position = [];//персонажи с позицией
+    this.teamComp;//команда компьютера
+    this.teamGamer;//команда игрока
     this.click = -1;//номер ячейки кликнутого персонажа
     this.enter = -1;//номер ячейки выделенной
     this.characterClick;//персонаж кликнутый
@@ -27,8 +30,8 @@ export default class GameController {
     this.characterAttack = [];//массив с возможными вариантами атаки
     this.left = [0 , 8, 16, 24, 32, 40, 48, 56];
     this.right = [7, 15, 23, 31, 39, 47, 55, 63];
-    //this.step = [0, 1];//ход игрока или компьютера 1 - игрок, 0 компьютер
-    //this.activePlayer;
+    this.level = 1;//уровень
+    this.scores = 0;//баллы
   }
 
   init() {
@@ -52,7 +55,7 @@ export default class GameController {
   }
 
   generateGamer(characterRandom, arrayCharacter){//если клетка занята, то нельзя туда поставить персонажа! исправить
-    let team = generateTeam( arrayCharacter, 1, 4);
+    let team = generateTeam( arrayCharacter, 1, 2);
       for(let character of team) {
         this.position.push( new PositionedCharacter(character, this.randomPosition(characterRandom)))
       }
@@ -70,26 +73,21 @@ export default class GameController {
 
   onCellClick(index) {
     // TODO: react to click
-    /*if(this.click != -1){
-      this.gamePlay.deselectCell(this.click);
-    };*/
 
-    //this.activePlayer = this.step[1];//ходит игрок
-    
+    if(this.click != -1){
+      this.gamePlay.deselectCell(this.click);
+    };
     if(this.position.find(pos => pos.position === index)){
         let click = this.position.find(pos => pos.position === index);
         
       if (click.character.type == "magician" || click.character.type == "bowman" || click.character.type == "swordsman"){
-        console.log("click mbs");
-        console.log(click);
         this.characterClick = click;
         this.gamePlay.selectCell(index);
         this.click = index;
 
       } else if (click.character.type == "undead" || click.character.type == "daemon" || click.character.type == "vampire"){
-        console.log("click udv");
-        console.log(click);
-        if(this.characterAttack.indexOf(index) != -1){
+        
+        if(this.characterAttack.indexOf(index) != -1 && this.click != -1){
           let damage = this.gamePlay.showDamage(index, Math.max(this.characterClick.character.attack - click.character.defence, this.characterClick.character.attack * 0.1));
           damage.then((response)=>{
             click.character.health -= Math.max(this.characterClick.character.attack - click.character.defence, this.characterClick.character.attack * 0.1);
@@ -97,7 +95,6 @@ export default class GameController {
               console.log("delete click");
               this.position = this.position.filter(item => item != click);
             }
-            this.gamePlay.deselectCell(this.click);
             this.gamePlay.redrawPositions(this.position);
             this.computerRunning();
           },(err)=>{
@@ -111,7 +108,6 @@ export default class GameController {
       this.position.forEach(pos => {
         if(pos.position == this.characterClick.position && this.characterMove.indexOf(index) != -1){
           pos.position = index;
-          this.gamePlay.deselectCell(this.click);
           this.gamePlay.redrawPositions(this.position);
           this.computerRunning();
         }
@@ -121,16 +117,18 @@ export default class GameController {
 
   computerRunning(){//ход компьютера
     this.gamePlay.deselectCell(this.click);
-    let arrComp = this.position.filter(item => item.character.type == "undead" || item.character.type == "daemon" || item.character.type == "vampire");
+    this.click = -1;
+    
+    this.teamComp = this.position.filter(item => item.character.type == "undead" || item.character.type == "daemon" || item.character.type == "vampire");
     //массив игроков компа
 
-    let arrGamer = this.position.filter(item => item.character.type == "bowman" || item.character.type == "magician" || item.character.type == "swordsman");
+    this.teamGamer = this.position.filter(item => item.character.type == "bowman" || item.character.type == "magician" || item.character.type == "swordsman");
     //массив игроков игрока
-
+    this.getWin(this.teamComp, this.teamGamer);
     let attackGamer;//атакующий, если есть в его поле атакуемые
-    let gamerActiveAttack = arrComp.find(item => {
+    let gamerActiveAttack = this.teamComp.find(item => {
       this.characterAttack = this.makeAttack(item);
-      attackGamer = arrGamer.find(item => this.characterAttack.indexOf(item.position) != -1)
+      attackGamer = this.teamGamer.find(item => this.characterAttack.indexOf(item.position) != -1)
       return attackGamer;
     });
 
@@ -141,14 +139,19 @@ export default class GameController {
           attackGamer.character.health -= Math.max(gamerActiveAttack.character.attack - attackGamer.character.defence, gamerActiveAttack.character.attack * 0.1);
           if(attackGamer.character.health < 0){
             this.position = this.position.filter(item => item != attackGamer);
+            this.teamGamer = this.position.filter(item => item.character.type == "bowman" || item.character.type == "magician" || item.character.type == "swordsman");
+            //массив игроков игрока
+            this.getWin(this.teamComp, this.teamGamer);
           }
+          
           this.gamePlay.deselectCell(gamerActiveAttack.position);
           this.gamePlay.redrawPositions(this.position);
+          
         },(err)=>{
           console.log("err");
         })
     } else {
-      let active = arrComp[Math.floor(Math.random() * Math.floor(arrComp.length))];//активный игрок
+      let active = this.teamComp[Math.floor(Math.random() * Math.floor(this.teamComp.length))];//активный игрок
       this.characterMove = this.makeMove(active);//возможные ходы
       let pos = this.randomPosition(this.characterMove);
       this.gamePlay.deselectCell(active.position);
@@ -157,10 +160,77 @@ export default class GameController {
     }
   }
 
+  getWin(comp, gamer){//массивы игроков команд
+    //проверка, что игроки одной команды побеждены
+    //происходит переход на новый уровень и начисления очков выигравшей стороне
+    //происходит переход на новый уровень с генерацией команд, levelUp'ом и восстановлением жизни
+    //Баллы, которые набирает игрок за уровень равны сумме жизней оставшихся в живых персонажей.
+    
+    if(comp.length === 0){//если игроки врага перебиты
+      this.level += 1;
+      
+      for(let char of gamer){
+        this.scores += char.character.health; 
+      }
+      console.log(this.scores);
+      for(let char of gamer){
+        char.position = this.randomPosition(this.randomGamer);
+      };
+
+      gamer.forEach((elem) => Character.levelUp.call(elem.character));
+
+      if(this.level == 2){
+        console.log("2");
+        this.gamePlay.drawUi(themes.desert);
+        this.newLevelUp(1, 2, 1, gamer.length + 1);
+        this.gamePlay.redrawPositions(this.position);
+
+      } else if(this.level == 3){
+        
+        this.gamePlay.drawUi(themes.arctic);
+        this.newLevelUp(2, 3, 2, gamer.length + 2)
+        this.gamePlay.redrawPositions(this.position);
+
+      } else if(this.level == 4){
+        this.gamePlay.drawUi(themes.mountain);
+        this.newLevelUp(3, 4, 2, gamer.length + 2)
+        this.gamePlay.redrawPositions(this.position);
+        
+      } else if(this.level == 5){
+        
+        this.gamePlay.cellEnterListeners = [];
+        this.gamePlay.cellLeaveListeners = [];
+        this.gamePlay.cellClickListeners = [];
+        GamePlay.showMessage(`
+          Победили!
+          Количество набранных баллов: ${this.scores}`);
+      }
+
+    } else if (gamer.length === 0){
+      
+      this.gamePlay.cellEnterListeners = [];
+      this.gamePlay.cellLeaveListeners = [];
+      this.gamePlay.cellClickListeners = [];
+      GamePlay.showMessage(`Вы проиграли...`);
+    }
+  }
+
+  newLevelUp(levelGamer, levelComp, countGamer, countComp){
+
+    let teamGamer = generateTeam( this.arrayClassGamer, countGamer, levelGamer);
+
+    for(let character of teamGamer) {
+      this.position.push( new PositionedCharacter(character, this.randomPosition(this.randomGamer)))
+    };
+    let teamComp = generateTeam( this.arrayClassComp, levelComp, countComp);
+    for(let character of teamComp){
+      this.position.push( new PositionedCharacter(character, this.randomPosition(this.randomComp)))
+    }
+  }
+
   move(step, gamer){
     let arr = [];
     let buffer = 8;
-    console.log("gamer  " + gamer);
       for(let i = 1; i <= step; i+=1){
         arr.push(gamer + buffer*i);
         arr.push(gamer - buffer*i);
@@ -279,38 +349,34 @@ export default class GameController {
     if(this.position.find(pos => pos.position === index)){
       this.characterEnter = this.position.find(pos => pos.position === index);
       if( this.characterEnter.character.type == "magician" || this.characterEnter.character.type == "bowman" || this.characterEnter.character.type == "swordsman"){
-      
-      this.gamePlay.showCellTooltip(`${'\u{1F396}'}${this.characterEnter.character.level}${'\u{2694}'}${this.characterEnter.character.attack}${'\u{1F6E1}'}${this.characterEnter.character.defence}${'\u{2764}'}${this.characterEnter.character.health}`,index);
-      
+        this.gamePlay.showCellTooltip(`${'\u{1F396}'}${this.characterEnter.character.level}${'\u{2694}'}${this.characterEnter.character.attack}${'\u{1F6E1}'}${this.characterEnter.character.defence}${'\u{2764}'}${this.characterEnter.character.health}`,index);
       }
     } else {
       this.characterEnter = {position: -1, character:{type:'none'}};
-    }
+    };
     
     //нужно создать метод проверки на ограничение действий хода и атаки
-
     //Если мы собираемся перейти на другую клетку (в рамках допустимых переходов), 
     //то поле подсвечивается зелёным(green), курсор приобретает форму pointer
     this.characterMove = this.makeMove(this.characterClick);
     if(this.characterMove.indexOf(this.characterEnter.position) == -1 && this.characterMove.indexOf(index) != -1){//не персонаж и в зоне действия
+      this.gamePlay.selectCell(this.click);
       this.gamePlay.setCursor(cursors.pointer);
       this.gamePlay.selectCell(index,"green");
-    } 
-
+    };
 
     //Если мы собираемся атаковать противника (в рамках допустимого радиуса атаки), 
     //то поле подсвечивается красным(red), курсор приобретает форму crosshair
     this.characterAttack = this.makeAttack(this.characterClick);
     if( this.characterEnter.character.type == "undead" || this.characterEnter.character.type == "vampire" || this.characterEnter.character.type == "daemon"){
+      this.gamePlay.selectCell(this.click);
       if(this.characterAttack.indexOf(this.characterEnter.position) == -1 ){
-        this.gamePlay.selectCell(this.click);
         this.gamePlay.setCursor(cursors.notallowed);
       } else {  
-        this.gamePlay.selectCell(this.click);
         this.gamePlay.setCursor(cursors.crosshair);
         this.gamePlay.selectCell(index,"red");
       }
-    }
+    };
     //создать массивы крайних чисел и если есть число в них, то дальше не расширять границы
     //Если мы собираемся выполнить недопустимое действие, 
     //то курсор приобретает форму notallowed (в этом случае при клике так же выводится сообщение об ошибке)

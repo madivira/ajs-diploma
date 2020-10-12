@@ -4,11 +4,11 @@ export default class Character {
     this.level = level;
     this.attack = 0;
     this.defence = 0;
-    this.health = 50;
+    this.health = 10;//50
     this.type = type;
     // TODO: throw error if user use "new Character()"
   }
-  levelUp(){
+  static levelUp(){
     this.level += 1;
     this.health += 80;
     if(this.health > 100){
