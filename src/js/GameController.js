@@ -2,6 +2,7 @@ import themes from "./themes";
 import cursors from "./cursors";
 import {generateTeam} from "./generators";
 import GamePlay from "./GamePlay";
+import GameState from "./GameState";
 import PositionedCharacter from "./PositionedCharacter";
 import Bowman from "./characters//Bowman";
 import Magician from "./characters//Magician";
@@ -32,6 +33,7 @@ export default class GameController {
     this.right = [7, 15, 23, 31, 39, 47, 55, 63];
     this.level = 1;//уровень
     this.scores = 0;//баллы
+    this.player;//чье право хода 1-игрок, 0- компьютер
   }
 
   init() {
@@ -44,6 +46,59 @@ export default class GameController {
     this.gamePlay.addCellEnterListener(this.onCellEnter.bind(this));
     this.gamePlay.addCellLeaveListener(this.onCellLeave.bind(this));
     this.gamePlay.addCellClickListener(this.onCellClick.bind(this));
+    this.gamePlay.addNewGameListener(this.onNewGameClick.bind(this));
+    this.gamePlay.addSaveGameListener(this.onSaveGameClick.bind(this));
+    this.gamePlay.addLoadGameListener(this.onLoadGameClick.bind(this));
+  }
+
+  onNewGameClick(){
+    this.position = [];
+    this.gamePlay.drawUi(themes.prairie);
+    this.gamePlay.redrawPositions(this.generateGamer(this.randomGamer,this.arrayClassGamer));
+    this.gamePlay.redrawPositions(this.generateGamer(this.randomComp,this.arrayClassComp));
+    this.level = 1;//уровень
+    this.scores = 0;//баллы
+    this.teamComp = [];//команда компьютера
+    this.teamGamer = [];//команда игрока
+    this.click = -1;//номер ячейки кликнутого персонажа
+    this.enter = -1;//номер ячейки выделенной
+    this.player = 1;//активный игрок
+  }
+
+  onSaveGameClick(){
+    const saved = {
+      position: this.position,
+      player: this.player,
+      level: this.level,
+      scores: this.scores
+    };
+    this.stateService.save(GameState.from(saved));
+    GamePlay.showMessage('Игра сохранена');
+  }
+
+  onLoadGameClick(){
+    const load = this.stateService.load();
+    if(load) {
+      this.position = load.position;
+      this.player = load.player;
+      this.level = load.level;
+      this.scores = load.scores;
+    }
+    switch (load.level) {
+      case 1:
+        this.gamePlay.drawUi('prairie');
+        break;
+      case 2:
+        this.gamePlay.drawUi('desert');
+        break;
+      case 3:
+        this.gamePlay.drawUi('arctic');
+        break;
+      case 4:
+        this.gamePlay.drawUi('mountain');
+        break;
+    }
+    this.gamePlay.redrawPositions(this.position);
   }
 
   randomPosition(random){
@@ -54,7 +109,7 @@ export default class GameController {
     return number;
   }
 
-  generateGamer(characterRandom, arrayCharacter){//если клетка занята, то нельзя туда поставить персонажа! исправить
+  generateGamer(characterRandom, arrayCharacter){
     let team = generateTeam( arrayCharacter, 1, 2);
       for(let character of team) {
         this.position.push( new PositionedCharacter(character, this.randomPosition(characterRandom)))
@@ -77,55 +132,65 @@ export default class GameController {
     if(this.click != -1){
       this.gamePlay.deselectCell(this.click);
     };
+
     if(this.position.find(pos => pos.position === index)){
-        let click = this.position.find(pos => pos.position === index);
+      let click = this.position.find(pos => pos.position === index);
         
       if (click.character.type == "magician" || click.character.type == "bowman" || click.character.type == "swordsman"){
         this.characterClick = click;
         this.gamePlay.selectCell(index);
         this.click = index;
 
-      } else if (click.character.type == "undead" || click.character.type == "daemon" || click.character.type == "vampire"){
-        
-        if(this.characterAttack.indexOf(index) != -1 && this.click != -1){
-          let damage = this.gamePlay.showDamage(index, Math.max(this.characterClick.character.attack - click.character.defence, this.characterClick.character.attack * 0.1));
-          damage.then((response)=>{
-            click.character.health -= Math.max(this.characterClick.character.attack - click.character.defence, this.characterClick.character.attack * 0.1);
-            if(click.character.health < 0){
-              console.log("delete click");
-              this.position = this.position.filter(item => item != click);
-            }
-            this.gamePlay.redrawPositions(this.position);
-            this.computerRunning();
-          },(err)=>{
-            console.log("err");
-          })
-        } else {
-          GamePlay.showError("Error! Please choose your character!");
-        }
-      }
+      };
+      
+      if (click.character.type == "undead" || click.character.type == "daemon" || click.character.type == "vampire"){
+        this.clickEnemy(index, click);
+        this.player = 1;
+      };
+
     } else {
-      this.position.forEach(pos => {
-        if(pos.position == this.characterClick.position && this.characterMove.indexOf(index) != -1){
-          pos.position = index;
-          this.gamePlay.redrawPositions(this.position);
-          this.computerRunning();
-        }
-      });
+      this.standAhother(index);
     };
+  }
+
+  standAhother(index){
+    this.position.forEach(pos => {
+      if(pos.position == this.characterClick.position && this.characterMove.indexOf(index) != -1){
+        pos.position = index;
+        this.gamePlay.redrawPositions(this.position);
+        this.computerRunning();
+      }
+    });
+  }
+
+  clickEnemy(index, click){
+    this.player = 0;
+    if(this.characterAttack.indexOf(index) != -1 && this.click != -1){
+      const damageHealth = Math.max(this.characterClick.character.attack - click.character.defence, this.characterClick.character.attack * 0.1);
+      let damage = this.gamePlay.showDamage(index, damageHealth);
+      damage.then((response)=>{
+        click.character.health -= damageHealth;
+        if(click.character.health < 0){
+          this.position = this.position.filter(item => item != click);
+        }
+        this.gamePlay.redrawPositions(this.position);
+        this.computerRunning();
+      },(err)=>{
+        console.log("err");
+      })
+    } else {
+      GamePlay.showError("Error! Please choose your character!");
+    }
   }
 
   computerRunning(){//ход компьютера
     this.gamePlay.deselectCell(this.click);
     this.click = -1;
-    
-    this.teamComp = this.position.filter(item => item.character.type == "undead" || item.character.type == "daemon" || item.character.type == "vampire");
-    //массив игроков компа
 
-    this.teamGamer = this.position.filter(item => item.character.type == "bowman" || item.character.type == "magician" || item.character.type == "swordsman");
-    //массив игроков игрока
-    this.getWin(this.teamComp, this.teamGamer);
+    this.showWin();
+
     let attackGamer;//атакующий, если есть в его поле атакуемые
+
     let gamerActiveAttack = this.teamComp.find(item => {
       this.characterAttack = this.makeAttack(item);
       attackGamer = this.teamGamer.find(item => this.characterAttack.indexOf(item.position) != -1)
@@ -134,22 +199,21 @@ export default class GameController {
 
     if(gamerActiveAttack) { 
       this.gamePlay.selectCell(gamerActiveAttack.position);
-      let damage = this.gamePlay.showDamage(attackGamer.position, Math.max(gamerActiveAttack.character.attack - attackGamer.character.defence, gamerActiveAttack.character.attack * 0.1));
-        damage.then((response)=>{
-          attackGamer.character.health -= Math.max(gamerActiveAttack.character.attack - attackGamer.character.defence, gamerActiveAttack.character.attack * 0.1);
-          if(attackGamer.character.health < 0){
-            this.position = this.position.filter(item => item != attackGamer);
-            this.teamGamer = this.position.filter(item => item.character.type == "bowman" || item.character.type == "magician" || item.character.type == "swordsman");
-            //массив игроков игрока
-            this.getWin(this.teamComp, this.teamGamer);
-          }
-          
-          this.gamePlay.deselectCell(gamerActiveAttack.position);
-          this.gamePlay.redrawPositions(this.position);
-          
-        },(err)=>{
-          console.log("err");
-        })
+      const damageHealth = Math.max(gamerActiveAttack.character.attack - attackGamer.character.defence, gamerActiveAttack.character.attack * 0.1);
+      let damage = this.gamePlay.showDamage(attackGamer.position, damageHealth);
+      damage.then((response)=>{
+        attackGamer.character.health -= damageHealth;
+        if(attackGamer.character.health < 0){
+          this.position = this.position.filter(item => item != attackGamer);
+          this.showWin();
+        };
+        
+        this.gamePlay.deselectCell(gamerActiveAttack.position);
+        this.gamePlay.redrawPositions(this.position);
+        
+      },(err)=>{
+        console.log("err");
+      })
     } else {
       let active = this.teamComp[Math.floor(Math.random() * Math.floor(this.teamComp.length))];//активный игрок
       this.characterMove = this.makeMove(active);//возможные ходы
@@ -160,58 +224,65 @@ export default class GameController {
     }
   }
 
-  getWin(comp, gamer){//массивы игроков команд
+  showWin(){//массивы игроков команд
     //проверка, что игроки одной команды побеждены
     //происходит переход на новый уровень и начисления очков выигравшей стороне
     //происходит переход на новый уровень с генерацией команд, levelUp'ом и восстановлением жизни
     //Баллы, которые набирает игрок за уровень равны сумме жизней оставшихся в живых персонажей.
-    
-    if(comp.length === 0){//если игроки врага перебиты
+    this.teamComp = this.position.filter(item => item.character.type == "undead" || item.character.type == "daemon" || item.character.type == "vampire");
+    //массив игроков компа
+    this.teamGamer = this.position.filter(item => item.character.type == "bowman" || item.character.type == "magician" || item.character.type == "swordsman");
+    //массив игроков игрока
+    if(this.teamComp.length === 0){//если игроки врага перебиты
       this.level += 1;
       
-      for(let char of gamer){
+      for(let char of this.teamGamer){
         this.scores += char.character.health; 
       }
       console.log(this.scores);
-      for(let char of gamer){
+      for(let char of this.teamGamer){
         char.position = this.randomPosition(this.randomGamer);
       };
 
-      gamer.forEach((elem) => Character.levelUp.call(elem.character));
+      this.teamGamer.forEach((elem) => Character.levelUp.call(elem.character));
 
-      if(this.level == 2){
-        console.log("2");
-        this.gamePlay.drawUi(themes.desert);
-        this.newLevelUp(1, 2, 1, gamer.length + 1);
-        this.gamePlay.redrawPositions(this.position);
-
-      } else if(this.level == 3){
-        
-        this.gamePlay.drawUi(themes.arctic);
-        this.newLevelUp(2, 3, 2, gamer.length + 2)
-        this.gamePlay.redrawPositions(this.position);
-
-      } else if(this.level == 4){
-        this.gamePlay.drawUi(themes.mountain);
-        this.newLevelUp(3, 4, 2, gamer.length + 2)
-        this.gamePlay.redrawPositions(this.position);
-        
-      } else if(this.level == 5){
-        
-        this.gamePlay.cellEnterListeners = [];
-        this.gamePlay.cellLeaveListeners = [];
-        this.gamePlay.cellClickListeners = [];
-        GamePlay.showMessage(`
-          Победили!
-          Количество набранных баллов: ${this.scores}`);
-      }
-
-    } else if (gamer.length === 0){
+      this.showNewLevel(this.teamGamer);
+    };
+    if (this.teamGamer.length === 0){
       
       this.gamePlay.cellEnterListeners = [];
       this.gamePlay.cellLeaveListeners = [];
       this.gamePlay.cellClickListeners = [];
       GamePlay.showMessage(`Вы проиграли...`);
+    }
+  }
+
+  showNewLevel(gamer) {
+    if(this.level == 2){
+      this.gamePlay.drawUi(themes.desert);
+      this.newLevelUp(1, 2, 1, gamer.length + 1);
+      this.gamePlay.redrawPositions(this.position);
+
+    };
+    if(this.level == 3){
+      this.gamePlay.drawUi(themes.arctic);
+      this.newLevelUp(2, 3, 2, gamer.length + 2)
+      this.gamePlay.redrawPositions(this.position);
+
+    };
+    if(this.level == 4){
+      this.gamePlay.drawUi(themes.mountain);
+      this.newLevelUp(3, 4, 2, gamer.length + 2)
+      this.gamePlay.redrawPositions(this.position);
+      
+    };
+    if(this.level == 5){
+      this.gamePlay.cellEnterListeners = [];
+      this.gamePlay.cellLeaveListeners = [];
+      this.gamePlay.cellClickListeners = [];
+      GamePlay.showMessage(`
+        Победили!
+        Количество набранных баллов: ${this.scores}`);
     }
   }
 
@@ -222,7 +293,9 @@ export default class GameController {
     for(let character of teamGamer) {
       this.position.push( new PositionedCharacter(character, this.randomPosition(this.randomGamer)))
     };
+
     let teamComp = generateTeam( this.arrayClassComp, levelComp, countComp);
+
     for(let character of teamComp){
       this.position.push( new PositionedCharacter(character, this.randomPosition(this.randomComp)))
     }
@@ -273,16 +346,16 @@ export default class GameController {
     //возможность хода Персонажи разного типа могут ходить на разное расстояние 
     //(в базовом варианте можно перескакивать через других персонажей - 
     //т.е. как конь в шахматах, единственно - ходим по прямым и по диагонали):
-    let typeStep;
+    
     if(gamer.character.type == "swordsman" || gamer.character.type == "undead"){//Мечники/Скелеты - 4 клетки в любом направлении
-      typeStep = 4;      
-    } else if(gamer.character.type == "bowman" || gamer.character.type == "vampire"){//Лучники/Вампиры - 2 клетки в любом направлении
-      typeStep = 2;
-    } else if(gamer.character.type == "magician" || gamer.character.type == "daemon"){//Маги/Демоны - 1 клетка в любом направлении
-      typeStep = 1;
+      return this.move(4, gamer.position);   
+    };
+    if(gamer.character.type == "bowman" || gamer.character.type == "vampire"){//Лучники/Вампиры - 2 клетки в любом направлении
+      return this.move(2, gamer.position);
+    };
+    if(gamer.character.type == "magician" || gamer.character.type == "daemon"){//Маги/Демоны - 1 клетка в любом направлении
+      return this.move(1, gamer.position);
     }
-    return this.move(typeStep, gamer.position);
-//возвращает массив
   }
 
   attack(step,gamer){
@@ -327,29 +400,35 @@ export default class GameController {
   }
 
   makeAttack(gamer){//дальность атаки Клетки считаются "по радиусу"
-    let typeStep;
-
     if(gamer.character.type == "swordsman" || gamer.character.type == "undead"){//Мечники/Скелеты - могут атаковать только соседнюю клетку
-      typeStep = 1;
-    } else if(gamer.character.type == "bowman" || gamer.character.type == "vampire"){//Лучники/Вампиры - на ближайшие 2 клетки
-      typeStep = 2;
-    } else if(gamer.character.type == "magician" || gamer.character.type == "daemon"){//Маги/Демоны - на ближайшие 4 клетки
-      typeStep = 4;
+      return this.attack(1, gamer.position);
+    };
+    if(gamer.character.type == "bowman" || gamer.character.type == "vampire"){//Лучники/Вампиры - на ближайшие 2 клетки
+      return this.attack(2, gamer.position);
+    };
+    if(gamer.character.type == "magician" || gamer.character.type == "daemon"){//Маги/Демоны - на ближайшие 4 клетки
+      return this.attack(4, gamer.position);
     }
-    return this.attack(typeStep, gamer.position);
   }
 
   onCellEnter(index) {
-      
+    const iconLevel = '\u{1F396}';
+    const iconAttack = '\u{2694}';
+    const icondefence = '\u{1F6E1}';
+    const iconHealth = '\u{2764}';
+
     if(this.enter != -1){
       this.gamePlay.deselectCell(this.enter);
     }
+
     this.gamePlay.setCursor(cursors.pointer);
     
     if(this.position.find(pos => pos.position === index)){
       this.characterEnter = this.position.find(pos => pos.position === index);
-      if( this.characterEnter.character.type == "magician" || this.characterEnter.character.type == "bowman" || this.characterEnter.character.type == "swordsman"){
-        this.gamePlay.showCellTooltip(`${'\u{1F396}'}${this.characterEnter.character.level}${'\u{2694}'}${this.characterEnter.character.attack}${'\u{1F6E1}'}${this.characterEnter.character.defence}${'\u{2764}'}${this.characterEnter.character.health}`,index);
+      const character = this.characterEnter.character;
+      if(character.type == "magician" || character.type == "bowman" || character.type == "swordsman"){
+        const status = `${iconLevel}${character.level}${iconAttack}${character.attack}${icondefence}${character.defence}${iconHealth}${character.health}`;
+        this.gamePlay.showCellTooltip(status,index);
       }
     } else {
       this.characterEnter = {position: -1, character:{type:'none'}};
@@ -359,6 +438,7 @@ export default class GameController {
     //Если мы собираемся перейти на другую клетку (в рамках допустимых переходов), 
     //то поле подсвечивается зелёным(green), курсор приобретает форму pointer
     this.characterMove = this.makeMove(this.characterClick);
+
     if(this.characterMove.indexOf(this.characterEnter.position) == -1 && this.characterMove.indexOf(index) != -1){//не персонаж и в зоне действия
       this.gamePlay.selectCell(this.click);
       this.gamePlay.setCursor(cursors.pointer);

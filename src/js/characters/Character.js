@@ -1,10 +1,12 @@
 export default class Character {
   constructor(level, type = 'generic') {
-    if(new.target.name === 'Character') throw new Error('Error! Class Character is not to be create.');
+    if(new.target.name === 'Character'){
+      throw new Error('Error! Class Character is not to be create.');
+    } 
     this.level = level;
     this.attack = 0;
     this.defence = 0;
-    this.health = 10;//50
+    this.health = 50;//50
     this.type = type;
     // TODO: throw error if user use "new Character()"
   }
