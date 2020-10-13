@@ -1,4 +1,4 @@
-import Character from '../Character';
+import Character from '../characters/Character';
 
 test('throw err', () => {
     expect(()=> new Character(1,'daemon')).toThrow(new Error('Error! Class Character is not to be create.'));
